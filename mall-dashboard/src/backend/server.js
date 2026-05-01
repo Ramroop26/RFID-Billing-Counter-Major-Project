@@ -183,7 +183,7 @@ app.post("/api/payment/confirm", (req, res) => {
 const distPath = path.join(__dirname, "../../dist");
 app.use(express.static(distPath));
 
-app.get("*", (req, res) => {
+app.get("(.*)", (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
