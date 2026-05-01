@@ -64,6 +64,13 @@ try {
 
   parser = port.pipe(new ReadlineParser({ delimiter: "\n" }));
 
+let latestData = {
+  transactionId: null,
+  action: null,
+  name: null,
+  price: 0
+};
+
   // ✅ Arduino data listener
   parser.on("data", async (line) => {
     line = line.trim();
