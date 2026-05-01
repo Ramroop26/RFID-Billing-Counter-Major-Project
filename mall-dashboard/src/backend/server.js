@@ -6,6 +6,11 @@ import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const razorpayInstance = new Razorpay({
   key_id: "rzp_test_dxyxSEUuzSF3bo",
@@ -39,79 +44,76 @@ const fallbackProducts = [
 ];
 
 // ✅ Arduino COM port setup
-const port = new SerialPort({
-  path: "COM5",   // Ensure this matches your Arduino port
-  baudRate: 9600,
-  autoOpen: false 
-});
+let port;
+let parser;
 
-port.open(function (err) {
-  if (err) {
-    console.error("Arduino COM Port Error:", err.message);
-  } else {
-    console.log("✅ Arduino connected on COM5");
-  }
-});
+try {
+  port = new SerialPort({
+    path: "COM5",   // Ensure this matches your Arduino port
+    baudRate: 9600,
+    autoOpen: false 
+  });
 
-const parser = port.pipe(new ReadlineParser({ delimiter: "\n" }));
-
-let latestData = {
-  transactionId: null,
-  action: null,
-  name: null,
-  price: 0
-};
-
-// ✅ Arduino data listener
-parser.on("data", async (line) => {
-  line = line.trim();
-  console.log("Arduino Message:", line);
-
-  if (line.startsWith("Scanned UID:")) {
-    const uid = line.replace("Scanned UID:", "").trim().toUpperCase();
-    
-    // 1. Try finding in MongoDB
-    let product;
-    try {
-      product = await Product.findOne({ uid });
-    } catch (e) {}
-
-    // 2. Fallback to hardcoded list if MongoDB fails/misses
-    if (!product) {
-      product = fallbackProducts.find(p => p.uid === uid);
+  port.open(function (err) {
+    if (err) {
+      console.warn("⚠️ Arduino COM Port not available (Expected on local):", err.message);
+    } else {
+      console.log("✅ Arduino connected on COM5");
     }
+  });
 
-    if (product) {
+  parser = port.pipe(new ReadlineParser({ delimiter: "\n" }));
+
+  // ✅ Arduino data listener
+  parser.on("data", async (line) => {
+    line = line.trim();
+    console.log("Arduino Message:", line);
+
+    if (line.startsWith("Scanned UID:")) {
+      const uid = line.replace("Scanned UID:", "").trim().toUpperCase();
+      
+      let product;
+      try {
+        product = await Product.findOne({ uid });
+      } catch (e) {}
+
+      if (!product) {
+        product = fallbackProducts.find(p => p.uid === uid);
+      }
+
+      if (product) {
+        latestData = {
+          transactionId: Date.now(),
+          action: "SCAN",
+          name: product.name,
+          price: product.price
+        };
+      } else {
+        latestData = { transactionId: Date.now(), action: "INVALID", name: "Unknown", price: 0 };
+      }
+    } 
+    else if (line.startsWith("ADD:")) {
+      const price = parseInt(line.replace("ADD:", "").trim());
       latestData = {
         transactionId: Date.now(),
-        action: "SCAN",
-        name: product.name,
-        price: product.price
+        action: "ADD",
+        name: "Item", 
+        price: price
       };
-    } else {
-      latestData = { transactionId: Date.now(), action: "INVALID", name: "Unknown", price: 0 };
     }
-  } 
-  // Handling IR Sensor / Manual Add/Remove signals (Needs Arduino code update)
-  else if (line.startsWith("ADD:")) {
-    const price = parseInt(line.replace("ADD:", "").trim());
-    latestData = {
-      transactionId: Date.now(),
-      action: "ADD",
-      name: "Item", 
-      price: price
-    };
-  }
-  else if (line.startsWith("REMOVE:")) {
-    const price = parseInt(line.replace("REMOVE:", "").trim());
-    latestData = {
-      transactionId: Date.now(),
-      action: "REMOVE",
-      name: "Item",
-      price: price
-    };
-  }
-});
+    else if (line.startsWith("REMOVE:")) {
+      const price = parseInt(line.replace("REMOVE:", "").trim());
+      latestData = {
+        transactionId: Date.now(),
+        action: "REMOVE",
+        name: "Item",
+        price: price
+      };
+    }
+  });
+} catch (error) {
+  console.warn("⚠️ SerialPort initialization skipped (Platform incompatible or no device).");
+}
 
 // ✅ API routes
 app.get("/api/billing/latest", (req, res) => {
@@ -143,7 +145,7 @@ app.post("/api/payment/confirm", (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
   const confirmAndNotifyArduino = () => {
-    if (port.isOpen) {
+    if (port && port.isOpen) {
       port.write("PAYMENT_SUCCESS\n");
       console.log("Sent PAYMENT_SUCCESS to Arduino");
     }
@@ -161,7 +163,7 @@ app.post("/api/payment/confirm", (req, res) => {
     if (expectedSignature === razorpay_signature) {
       return confirmAndNotifyArduino();
     } else {
-      if (port.isOpen) port.write("PAYMENT_FAILED\n");
+      if (port && port.isOpen) port.write("PAYMENT_FAILED\n");
       return res.status(400).json({ status: "Failed", message: "Invalid Signature" });
     }
   }
@@ -170,6 +172,14 @@ app.post("/api/payment/confirm", (req, res) => {
   confirmAndNotifyArduino();
 });
 
+// ✅ Serve Frontend (for Cloud Run/Production)
+const distPath = path.join(__dirname, "../../dist");
+app.use(express.static(distPath));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
 // ✅ Start server
-const PORT = 5000;
-app.listen(PORT, () => console.log(`🚀 Backend running on http://localhost:${PORT}`));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Backend running on port ${PORT}`));
