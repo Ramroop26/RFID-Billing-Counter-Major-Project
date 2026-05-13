@@ -234,6 +234,7 @@ function BillingDashboard() {
       return;
     }
 
+    //
     try {
       const { data: order } = await axios.post("http://localhost:5000/api/payment/order", { amount: total });
 
