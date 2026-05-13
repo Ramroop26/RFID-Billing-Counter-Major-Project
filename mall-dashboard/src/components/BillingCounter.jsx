@@ -52,7 +52,7 @@ function BillingDashboard() {
       }
     };
 
-    const interval = setInterval(fetchData, 1000); 
+    const interval = setInterval(fetchData, 1000);
     return () => clearInterval(interval);
   }, [lastTransactionId, cart]);
 
@@ -104,7 +104,7 @@ function BillingDashboard() {
   const handleQuantityChange = (name, newQty) => {
     const qty = parseInt(newQty);
     if (isNaN(qty) || qty < 0) return;
-    
+
     setCart((prevCart) => {
       if (qty === 0) {
         return prevCart.filter((item) => item.name !== name);
@@ -139,19 +139,19 @@ function BillingDashboard() {
     window.speechSynthesis.cancel(); // Clear any stuck speech
 
     const msg = new SpeechSynthesisUtterance(text);
-    
+
     // Get voices
     const voices = window.speechSynthesis.getVoices();
     // Try to get any Hindi or English voice
     let selectedVoice = voices.find(v => v.lang === "hi-IN" && v.name.includes("Google")) ||
-                        voices.find(v => v.lang === "hi-IN") || 
-                        voices.find(v => v.lang.includes("en-IN"));
-    
+      voices.find(v => v.lang.includes("hi-IN")) ||
+      voices.find(v => v.lang.includes("en-IN"));
+
     if (selectedVoice) {
       msg.voice = selectedVoice;
     }
 
-    msg.rate = 0.9; 
+    msg.rate = 0.9;
     msg.pitch = 1.0;
     msg.volume = 1.0;
 
@@ -238,7 +238,7 @@ function BillingDashboard() {
       const { data: order } = await axios.post("http://localhost:5000/api/payment/order", { amount: total });
 
       const options = {
-        key: "rzp_test_dxyxSEUuzSF3bo", 
+        key: "rzp_test_dxyxSEUuzSF3bo",
         amount: order.amount,
         currency: "INR",
         name: "Premium Mall Store",
@@ -323,11 +323,11 @@ function BillingDashboard() {
                     <td>₹{item.price}</td>
                     <td>
                       <div className="qty-controls">
-                        <button 
+                        <button
                           className="qty-btn"
                           onClick={() => {
                             updateCart(item.name, item.price, -1, true);
-                            if(item.quantity > 1) {
+                            if (item.quantity > 1) {
                               speak(`${item.name} ki quantity kam ho gayi.`);
                             } else {
                               speak(`${item.name} hat gaya.`);
@@ -343,7 +343,7 @@ function BillingDashboard() {
                           onChange={(e) => handleQuantityChange(item.name, e.target.value)}
                           min="1"
                         />
-                        <button 
+                        <button
                           className="qty-btn"
                           onClick={() => {
                             updateCart(item.name, item.price, 1, true);
@@ -356,8 +356,8 @@ function BillingDashboard() {
                     </td>
                     <td>₹{item.price * item.quantity}</td>
                     <td>
-                      <button 
-                        className="remove-btn-icon" 
+                      <button
+                        className="remove-btn-icon"
                         onClick={() => handleQuantityChange(item.name, 0)}
                         title="Remove item"
                       >
@@ -421,8 +421,8 @@ function BillingDashboard() {
 
           {showQR && (
             <div className="qr-box">
-              <QRCodeCanvas 
-                value={`upi://pay?pa=8269709627@axl&pn=Mall&am=${total}&cu=INR`} 
+              <QRCodeCanvas
+                value={`upi://pay?pa=8269709627@axl&pn=Mall&am=${total}&cu=INR`}
                 size={180}
                 includeMargin={true}
               />
